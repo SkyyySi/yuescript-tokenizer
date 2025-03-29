@@ -1,0 +1,121 @@
+Root <-| (Token / Unknown)*
+
+Unknown <== { (!Token .)+ }
+
+Token <-- (
+	Comment /
+	String /
+	Symbol /
+	Keyword /
+	Number /
+	Identifier /
+	Whitespace
+)
+
+String <== {
+	(`"`  ('\"' / !'"' .)* `"`) /
+	(`'`  ("\'" / !"'" .)* `'`) /
+	(("[" {:temp: '='* :} "[") (!("]" =temp "]") .)* ("]" =temp "]"))
+}
+
+numberBase    <-- [0-9]       (`_`? [0-9])*
+numberBaseHex <-- [0-9a-fA-F] (`_`? [0-9a-fA-F])*
+Number <== {
+	("0x" ((numberBaseHex? `.`)? numberBaseHex) ([pP] [+-]? numberBase)?) /
+	(     ((numberBase?    `.`)? numberBase)    ([eE] [+-]? numberBase)?)
+}
+
+-- TODO: Unicode support
+Identifier <== {
+	("@"+ / "$"? [a-zA-Z_]) [a-zA-Z0-9_]*
+}
+
+-- https://github.com/IppClub/YueScript/blob/main/src/yuescript/yue_parser.cpp#L22
+Keyword <== {
+	`and` / `break` / `do` / `else` / `elseif` /
+	`end` / `false` / `for` / `function` / `goto` /
+	`if` / `in` / `local` / `nil` / `not` /
+	`or` / `repeat` / `return` / `then` / `true` /
+	`until` / `while` / -- Lua keywords
+	`as` / `class` / `continue` / `export` / `extends` /
+	`from` / `global` / `import` / `macro` / `switch` /
+	`try` / `unless` / `using` / `when` / `with` -- Yue keywords
+}
+
+Symbol <== {
+	`...` /
+
+	`==` /
+	`!=` /
+	`~=` /
+	`>=` /
+	`<=` /
+
+	`|>` /
+	`->` /
+	`=>` /
+	`<-` /
+
+	`+=` /
+	`-=` /
+	`*=` /
+	`//=` /
+	`/=` /
+	`%=` /
+	`^=` /
+	`&=` /
+	`|=` /
+	`>>=` /
+	`<<=` /
+	`..=` /
+	`??=` /
+	`and=` /
+	`or=` /
+
+	`=` /
+
+	`+` /
+	`-` /
+	`*` /
+	`//` /
+	`/` /
+	`%` /
+	`^` /
+	`&` /
+	`|` /
+	`>>` /
+	`<<` /
+	`..` /
+	`??` /
+
+	`>` /
+	`<` /
+
+	`(` /
+	`)` /
+	`{` /
+	`}` /
+	`[` /
+	`]` /
+
+	`!` /
+	`?` /
+	`#` /
+	`~` /
+
+	`\` /
+	`::` /
+	`:` /
+	`.` /
+	`,`
+}
+
+Whitespace <== { %s+ }
+
+Comment <== {
+	(("--[" {:temp: '='* :} "[") (!("]" =temp "]") .)* ("]" =temp "]")) /
+	(`--` [^%cn]*)
+}
+
+SKIP <-- ""
+NAME_SUFFIX <-- ""
