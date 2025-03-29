@@ -1,4 +1,6 @@
 #!/usr/bin/env yue
+--- SPDX-License-Identifier: 0BSD
+---
 --- This script is only meant as a test for syntax highlighting. If the code
 --- here looks like nonsense, that's because... it is. I just wrote down
 --- whatever I came up with while thinking of stuff that *looks* like "real"

@@ -1,3 +1,6 @@
+#!/usr/bin/env yue
+--- SPDX-License-Identifier: 0BSD
+
 from _G import type, error, assert, print, tostring, ipairs, io, os, debug, table, string
 
 import "lpegrex"
@@ -180,8 +183,14 @@ export main = (argv=arg) ->
 	--else
 	--	[===[if true then print("Yes") else print('No', 0x10)]===]
 	const test_code = [===[if true then print("Yes", [[At least, I think]]) else print('No', 0x10)]===]
+
 	$log(test_code)
+	print()
+
 	const tokens = tokenize(test_code)
+
+	for token in *tokens
+		print(token::__repr())
 
 	visualize(tokens)
 

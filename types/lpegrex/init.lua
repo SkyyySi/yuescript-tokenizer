@@ -1,4 +1,5 @@
 ---@meta lpegrex
+--- SPDX-License-Identifier: 0BSD
 
 local lpegrex = {}
 

@@ -1,4 +1,5 @@
 ---@meta lpeglabel
+--- SPDX-License-Identifier: 0BSD
 
 ---@class lpeglabel.Pattern : userdata, lpeglabel
 ---@operator add(lpeglabel.Pattern): lpeglabel.Pattern # Matches `self` or `other` (ordered choice)

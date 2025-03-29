@@ -1,4 +1,5 @@
 ---@meta yuescript-tokenizer
+--- SPDX-License-Identifier: 0BSD
 
 ---@class yuescript-tokenizer
 ---@field grammar   string
