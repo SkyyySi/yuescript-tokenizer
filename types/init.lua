@@ -37,21 +37,7 @@ local Token_base = {}
 ---@field __base yuescript-tokenizer.Token.__base
 ---@field __init fun(self: yuescript-tokenizer.Token, name: string, pos: integer, endpos: integer, value: string)
 ---@overload fun(name: string, pos: integer, endpos: integer, value: string): self: yuescript-tokenizer.Token
-_M.Token = setmetatable({
-	---@param self   yuescript-tokenizer.Token
-	---@param name   string
-	---@param pos    integer
-	---@param endpos integer
-	---@param value  string
-	__init = function(self, name, pos, endpos, value) end,
-	__base = Token_base,
-	__name = "Token",
-}, {
-	__index = Token_base,
-	---@param cls yuescript-tokenizer.Token.__class
-	---@param ... unknown
-	__call  = function(cls, ...) end,
-})
+_M.Token = {}
 
 ---@generic T
 ---@param func_name string
@@ -60,19 +46,11 @@ function _M.check_arguments(func_name, arguments) end
 
 ---@param source_code string
 ---@param file_name?  string
----@return Token[] | nil    tokens
----@return nil     | string error_message
----@return nil     | string traceback
+---@return yuescript-tokenizer.Token[] tokens
 ---@nodiscard
-function _M.try_tokenize() end
+function _M.tokenize(source_code, file_name) end
 
----@param source_code string
----@param file_name?  string
----@return Token[] tokens
----@nodiscard
-function _M.tokenize() end
-
----@param tokens Token[]
+---@param tokens yuescript-tokenizer.Token[]
 function _M.visualize(tokens) end
 
 ---@param argv? string[]

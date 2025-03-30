@@ -1,7 +1,7 @@
 #!/usr/bin/env yue
 --- SPDX-License-Identifier: 0BSD
 
-from _G import type, error, assert, print, tostring, ipairs, io, os, debug, table, string
+from _G import type, error, assert, print, tostring, ipairs, io, os, debug, table, string, getmetatable, setmetatable
 
 import "lpegrex"
 
@@ -16,14 +16,14 @@ macro log = (...) ->
 		const expr = argv[i]
 		const expr_quoted = "%q"::format(expr)
 		code ..= "(function(x)
-	local type_of_x = type(x)
-	if type_of_x == \"string\" then
-		x = (\"%q\"):format(x)
-	else
-		x = tostring(x)
-	end
-	print((\"%s: %s = %s\"):format(#{expr_quoted}, type_of_x, x))
-end)(#{expr});"
+			local type_of_x = type(x)
+			if type_of_x == \"string\" then
+				x = (\"%q\"):format(x)
+			else
+				x = tostring(x)
+			end
+			print((\"%s: %s = %s\"):format(#{expr_quoted}, type_of_x, x))
+		end)(#{expr});"
 
 	{
 		type: "lua",
@@ -67,6 +67,26 @@ export grammar = do
 	file::read("*a")
 
 
+export known_tokens = {
+	Comment:    1,
+	String:     2,
+	Symbol:     3,
+	Keyword:    4,
+	Number:     5,
+	Identifier: 6,
+	Whitespace: 7,
+	Unknown:    8,
+	[1]: "Comment",
+	[2]: "String",
+	[3]: "Symbol",
+	[4]: "Keyword",
+	[5]: "Number",
+	[6]: "Identifier",
+	[7]: "Whitespace",
+	[8]: "Unknown",
+}
+
+
 export class Token
 	new: (@name, @pos, @endpos, @value) =>
 		check_arguments("Token.__init", [
@@ -77,25 +97,15 @@ export class Token
 			[5, "value",  "string", value],
 		])
 
-	--- This method uses another (currently private) library of mine to convert
-	--- objects into strings with ANSI colors for pretty-printing to the
-	--- terminal. You need to provide your own implementation if you want to
-	--- make use of it.
-	__pretty: () =>
-		check_arguments("Token.__init", [
+	__tostring: () =>
+		check_arguments("Token.__tostring", [
 			[1, "self", "table", @],
 		])
-		import "pretty"
 
-		"\027[1;36m#{@@__name}\027[22;39m(" .. table.concat([
-			pretty(@name),
-			pretty(@pos),
-			pretty(@endpos),
-			pretty(@value),
-		], "\027[35m,\027[39m ") .. ")"
+		@value
 
 	__repr: () =>
-		check_arguments("Token.__init", [
+		check_arguments("Token.__repr", [
 			[1, "self", "table", @],
 		])
 
@@ -107,19 +117,275 @@ export class Token
 			@value,
 		)
 
-	__tostring: () =>
-		check_arguments("Token.__init", [
+	--- This method uses another (currently private) library of mine to convert
+	--- objects into strings with ANSI colors for pretty-printing to the
+	--- terminal. You need to provide your own implementation if you want to
+	--- make use of it.
+	__pretty: () =>
+		check_arguments("Token.__pretty", [
 			[1, "self", "table", @],
 		])
 
-		@value
+		if not pcall(require, "pretty")
+			return @__repr()
+
+		import "pretty"
+
+		"\027[1;36m#{@@__name}\027[22;39m(" ..
+		table.concat([
+			pretty(@name),
+			pretty(@pos),
+			pretty(@endpos),
+			pretty(@value),
+		], "\027[35m,\027[39m ") ..
+		")"
 
 	__concat: (other) =>
-		check_arguments("Token.__init", [
+		check_arguments("Token.__concat", [
 			[1, "self", "table", @],
 		])
 
 		@value .. tostring(other)
+
+	highlight: () =>
+		check_arguments("Token.highlight", [
+			[1, "self", "table", @],
+		])
+
+		const { :name, :value } = @
+
+		switch name
+			when "Comment"    then "\027[2m#{value}\027[22m"
+			when "String"     then "\027[33m#{value}\027[39m"
+			when "Symbol"     then "\027[35m#{value}\027[39m"
+			when "Keyword"    then
+				if value == "true"
+					"\027[1;32mtrue\027[22;39m"
+				elseif value == "false"
+					"\027[1;31mfalse\027[22;39m"
+				elseif value == "nil"
+					"\027[1;34mnil\027[22;39m"
+				else
+					"\027[35m#{value}\027[39m"
+			when "Number"     then "\027[34m#{value}\027[39m"
+			when "Identifier" then "\027[36m#{value}\027[39m"
+			when "Whitespace" then value
+			when "Unknown"    then "\027[41m#{value}\027[49m"
+			else
+				error("Unknown token name %q!"::format(name))
+
+Token.<tostring> = (cls) ->
+	check_arguments("Token.<tostring>", [
+		[1, "cls", "table", cls],
+	])
+
+	"<class %q>"::format(cls.__name)
+
+
+const _is_instance_impl = (object_metatable, cls) ->
+	if object_metatable == rawget(cls, "__base")
+		return true
+
+	if parent := rawget(cls, "__parent")
+		return _is_instance_impl(object_metatable, parent)
+
+	return false
+
+
+const is_instance = (object, cls) ->
+	check_arguments("is_instance", [
+		[1, "object", "table", object],
+		[2, "cls",    "table", cls],
+	])
+
+	_is_instance_impl(object.<>, cls)
+
+
+export class TokenStream
+	new: (tokens) =>
+		check_arguments("TokenStream.__init", [
+			[1, "self",   "table", @],
+			[2, "tokens", "table", tokens],
+		])
+
+		const first_key = next(tokens, nil)
+
+		if first_key == nil
+			@length = 0
+			return
+
+		if first_key != 1
+			error("The table of tokens does not start at index 1!")
+
+		local last_key = nil
+		local length = 0
+
+		for k, v in pairs(tokens)
+			if type(k) != "number"
+				error("The table of tokens contained a key of an invalid type! (expected an integer, got: #{type(k)})")
+
+			if last_key == nil
+				last_key = k
+			elseif k != (last_key + 1)
+				error("The table of tokens is not sequential! (got key #{k} when key #{last_key + 1} was expected)")
+
+			last_key = k
+
+			if type(v) != "table"
+				error("The table of tokens contained a value of an invalid type! (expected a table, got: #{type(v)})")
+
+			if not is_instance(v, Token)
+				error("The table of tokens contained a value which is not an instance of 'Token'! (at index #{k})")
+
+			length += 1
+			@[k] = v
+
+		@length = length
+
+	__tostring: () =>
+		check_arguments("TokenStream.__tostring", [
+			[1, "self", "table", @],
+		])
+
+		table.concat([value for value in @values()])
+
+	__repr: () =>
+		check_arguments("TokenStream.__repr", [
+			[1, "self", "table", @],
+		])
+
+		@@__name ..
+		"([" ..
+		--table.concat([token::__repr() for token in @tokens()], ", ") ..
+		(
+			(@length > 0) and
+			("\n    " .. table.concat([token::__repr() for token in @tokens()], ",\n    ") .. "\n") or
+			""
+		) ..
+		"])"
+
+	__pretty: () =>
+		check_arguments("TokenStream.__pretty", [
+			[1, "self", "table", @],
+		])
+
+		if not pcall(require, "pretty")
+			return @__repr()
+
+		import "pretty"
+
+		"\027[1;36m#{@@__name}\027[22;39m(\027[35m[\027[39m" ..
+		(
+			(@length > 0) and
+			("\n    " .. table.concat([token::__pretty() for token in @tokens()], "\027[35m,\027[39m\n    ") .. "\n") or
+			""
+		) ..
+		"\027[35m]\027[39m)"
+
+	pairs: () =>
+		check_arguments("TokenStream.__call", [
+			[1, "self", "table", @],
+		])
+
+		const { :length } = @
+
+		local index = 0
+
+		() ->
+			index += 1
+
+			if index > length
+				return
+
+			index, @[index]
+
+	tokens: () =>
+		check_arguments("TokenStream.tokens", [
+			[1, "self", "table", @],
+		])
+
+		const { :length } = @
+
+		local index = 0
+
+		() ->
+			index += 1
+
+			if index > length
+				return
+
+			@[index]
+
+	values: () =>
+		check_arguments("TokenStream.values", [
+			[1, "self", "table", @],
+		])
+
+		const { :length } = @
+
+		local index = 0
+
+		() ->
+			index += 1
+
+			if index > length
+				return
+
+			@[index].value
+
+	for_each: (f) =>
+		check_arguments("TokenStream.for_each", [
+			[1, "self", "table",    @],
+			[2, "f",    "function", f],
+		])
+
+		for i, token in @pairs()
+			f(token, i)
+
+	map: (f) =>
+		check_arguments("TokenStream.map", [
+			[1, "self", "table",    @],
+			[2, "f",    "function", f],
+		])
+
+		@@([f(token, i) for i, token in @pairs()])
+
+	filter: (f) =>
+		check_arguments("TokenStream.filter", [
+			[1, "self", "table",    @],
+			[2, "f",    "function", f],
+		])
+
+		@@([token for i, token in @pairs() when f(token, i)])
+
+	visualize: () =>
+		check_arguments("TokenStream.visualize", [
+			[1, "self", "table", @],
+		])
+
+		local result = "\027[30m\n"
+
+		for i, token in @pairs()
+			result ..= "\027[4%dm"::format((i - 1) % 6 + 1) .. tostring(token)
+
+		result ..= "\027[0m\n"
+
+		result
+
+	highlight: () =>
+		check_arguments("TokenStream.highlight", [
+			[1, "self", "table", @],
+		])
+
+		table.concat([token::highlight() for token in @tokens()])
+
+
+TokenStream.<tostring> = (cls) ->
+	check_arguments("TokenStream.<tostring>", [
+		[1, "cls", "table", cls],
+	])
+
+	"<class %q>"::format(cls.__name)
 
 
 export tokenizer = lpegrex.compile(grammar, {
@@ -130,6 +396,11 @@ export tokenizer = lpegrex.compile(grammar, {
 
 
 export tokenize = (source_code, file_name="<unknown>") ->
+	check_arguments("try_tokenize", [
+		[1, "source_code", "string", source_code],
+		[2, "file_name",   "string", file_name],
+	])
+
 	check_arguments("tokenize", [
 		[1, "source_code", "string", source_code],
 		[2, "file_name",   "string", file_name],
@@ -137,15 +408,11 @@ export tokenize = (source_code, file_name="<unknown>") ->
 
 	const tokens, error_label, error_position = tokenizer::match(source_code)
 
-	const type_of_tokens = type(tokens)
-	if type_of_tokens == "table"
-		return tokens
+	if type(tokens) == "table"
+		return TokenStream(tokens)
 
 	if (error_label == nil) or (error_position == nil)
-		error("The tokenizer returned an incorrect type! (expected %q, got: %q)"::format(
-			"table",
-			type_of_tokens,
-		))
+		error("The tokenizer returned an incorrect type! (expected a table, got: #{type(tokens)})")
 
 	const line_number, column_number, line = lpegrex.calcline(source_code, error_position)
 
@@ -161,38 +428,28 @@ export tokenize = (source_code, file_name="<unknown>") ->
 	))
 
 
-export try_tokenize = (source_code, file_name="<unknown>") ->
-	error("TODO")
-
-
-export visualize = (tokens) ->
-	io.write("\027[30m\n")
-	for i, token in ipairs(tokens)
-		io.write(
-			"\027[4%dm"::format((i - 1) % 6 + 1),
-			tostring(token)
-		)
-	io.write("\027[0m\n")
-	io.flush()
-
-
 export main = (argv=arg) ->
-	--const test_code = if file_path := argv[1]
-	--	close file = io.open(file_path, "r")
+	--const test_code = do
+	--	close file = io.open("demo.yue", "r")
 	--	file::read("*a")
-	--else
-	--	[===[if true then print("Yes") else print('No', 0x10)]===]
 	const test_code = [===[if true then print("Yes", [[At least, I think]]) else print('No', 0x10)]===]
 
-	$log(test_code)
+	--$log(test_code)
 	print()
 
 	const tokens = tokenize(test_code)
 
-	for token in *tokens
-		print(token::__repr())
+	print(tokens)
+	print()
+	print(tokens::__repr())
+	print()
+	print(tokens::__pretty())
+	print()
+	print(tokens::visualize())
+	print()
+	print(tokens::highlight())
 
-	visualize(tokens)
+	print(tokens::filter((token) -> token.value == "and="))
 
 
 if select("#", ...) == 0

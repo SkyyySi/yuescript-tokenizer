@@ -1,0 +1,16 @@
+macro lisp = (input) ->
+	from "yuescript-tokenizer" import tokenize
+
+	const tokens = tokenize(input)
+	print(tokens::visualize())
+
+	-- TODO
+
+	"((->)!)"
+
+
+const name = "Timmy"
+
+$lisp[===[
+(print (.. "Hello, my name is " name "!"))
+]===]
