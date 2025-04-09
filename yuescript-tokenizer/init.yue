@@ -379,6 +379,56 @@ export class TokenStream
 
 		table.concat([token::highlight() for token in @tokens()])
 
+	match_grouped: (start_index, strict=false) =>
+		check_arguments("TokenStream.match_grouped", [
+			[1, "self",        "table",   @],
+			[2, "start_index", "number",  start_index],
+			[3, "strict",      "boolean", strict],
+		])
+
+		if (start_index < 1) or (start_index > @length)
+			error("The given start-index is out of bounds! (expected 1..%d, got: %d)"::format(
+				@length,
+				start_index,
+			))
+
+		if strict and (@[1].value not in ["(", "[", "{", "<"])
+			error("The token at the given start-index #{start_index} is not a bracket symbol! (set 'strict' to false if that is intentional)")
+
+			return @@({ first_token })
+
+		local parenthesis_count = 0 -- ()
+		local bracket_count     = 0 -- []
+		local brace_count       = 0 -- {}
+		local angle_count       = 0 -- <>
+
+		const result = []
+
+		for i = start_index, @length
+			const token = @[i]
+
+			switch token.value
+				when "(" then parenthesis_count += 1
+				when ")" then parenthesis_count -= 1
+				when "[" then bracket_count     += 1
+				when "]" then bracket_count     -= 1
+				when "{" then brace_count       += 1
+				when "}" then brace_count       -= 1
+				when "<" then angle_count       += 1
+				when ">" then angle_count       -= 1
+
+			result[] = token
+
+			if (
+				(parenthesis_count == 0) and
+				(bracket_count == 0) and
+				(brace_count == 0) and
+				(angle_count == 0)
+			)
+				return @@(result)
+
+		error("Could find a matching closing bracket symbol for each opening one found between #{start_index} and #{@length}!")
+
 
 TokenStream.<tostring> = (cls) ->
 	check_arguments("TokenStream.<tostring>", [

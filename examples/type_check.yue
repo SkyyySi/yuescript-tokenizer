@@ -7,12 +7,59 @@ macro check_types = (...) ->
 	const argc = select("#", ...)
 	const argv = { ... }
 
+	const match_type_expr = (tokens, offset=0) ->
+		const first = tokens[1 + offset]
+
+		if first.value == "("
+			const group = tokens::match_grouped(1 + offset)
+
+			return match_type_expr(
+				group::filter((token, index) -> 1 < index < group.length)
+			)
+
+		-- TODO
+
+	const matchers = []
+
 	for i = 1, argc
 		const tokens = tokenize(argv[i])
+			::filter((token, index) -> token.name not in ["Whitespace", "Comment"])
 
-		const name = tokens[1]
+		const first = tokens[1]
+		assert(first.name in ["Identifier", "Keyword"])
 
-		print(i, name, tokens::visualize())
+		print(i, first, tokens::visualize())
+
+		if tokens.length == 1
+			matchers[] = {
+				name: first.name,
+				expr: "true",
+			}
+			continue
+
+		assert(tokens[2].value == ":")
+
+		const match_expr_data = []
+
+		for index = 3, tokens.length
+			const token = tokens[index]
+
+			print(index, token)
+
+			if token.value == "?"
+				-- ...
+
+		local match_expr = "(" .. table.concat(
+			match_expr_data,
+			") or (",
+		) .. ")"
+
+		print("match_expr = %q"::format(match_expr))
+
+		matchers[] = {
+			name: first.name,
+			expr: match_expr,
+		}
 
 	"((->)!)"
 
@@ -20,21 +67,23 @@ macro check_types = (...) ->
 export main = (argv=arg) ->
 	print($FILE .. ":" .. $LINE)
 
-	const f = (x, y, z) ->
+	const f = (x, y, z, w) ->
 		$check_types(
 			x: string
 			y: (number | () -> number)
 			z: boolean?
+			w
 		)
 
-		print("f(x=%q, y=%.14g, z=%s)"::format(
+		print("f(x=%q, y=%.14g, z=%s, w=(%s))"::format(
 			x
 			y
 			tostring(z)
+			tostring(w)
 		))
 
-	f("Test", 123, true)
+	f("Test", 123, true, {})
 
 
 if select("#", ...) == 0
-        os.exit(main())
+	os.exit(main())
