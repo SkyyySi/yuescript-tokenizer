@@ -1,0 +1,40 @@
+#!/usr/bin/env yue
+--- SPDX-License-Identifier: 0BSD
+
+macro check_types = (...) ->
+	from "yuescript-tokenizer" import tokenize
+
+	const argc = select("#", ...)
+	const argv = { ... }
+
+	for i = 1, argc
+		const tokens = tokenize(argv[i])
+
+		const name = tokens[1]
+
+		print(i, name, tokens::visualize())
+
+	"((->)!)"
+
+
+export main = (argv=arg) ->
+	print($FILE .. ":" .. $LINE)
+
+	const f = (x, y, z) ->
+		$check_types(
+			x: string
+			y: (number | () -> number)
+			z: boolean?
+		)
+
+		print("f(x=%q, y=%.14g, z=%s)"::format(
+			x
+			y
+			tostring(z)
+		))
+
+	f("Test", 123, true)
+
+
+if select("#", ...) == 0
+        os.exit(main())
