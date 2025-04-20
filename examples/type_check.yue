@@ -7,14 +7,52 @@ macro check_types = (...) ->
 	const argc = select("#", ...)
 	const argv = { ... }
 
+	const quote = (expr) ->
+		const result = "%q"::format(expr)::gsub("#", "\#")
+		result
+
+	local result = []
+
 	for i = 1, argc
 		const tokens = tokenize(argv[i])
+			::filter((token) -> token.name not in ["Comment", "Whitespace"])
+
+		assert(tokens[1].name in ["Identifier", "Keyword"])
+		assert(tokens[2].value == ":")
+		assert(#tokens >= 3)
 
 		const name = tokens[1]
+		local type_constraints = ""
 
-		print(i, name, tokens::visualize())
+		for i = 3, #tokens
+			token = tokens[i]
 
-	"((->)!)"
+			if token.name in ["Identifier", "Keyword"]
+				--- Allow "_function" since "function" on its own is not valid YueScript
+				const type_name = token.value::match("^_?(.*)$")
+				type_constraints ..= "(type(#{name}) == #{quote(type_name)})"
+			elseif token.name in ["String", "Number"]
+				type_constraints ..= "((#{name}) == (#{token.value}))"
+			elseif token.value == "?"
+				type_constraints ..= " or ((#{name}) == nil)"
+			elseif token.value == "|"
+				type_constraints ..= " or "
+			elseif token.value == "{"
+				error("TODO: Implement structural pattern matching for tables")
+			elseif token.value == "["
+				error("TODO: Implement structural pattern matching for tuple-like tables")
+			else
+				error("Unexpected token #{quote(token.value)}!")
+
+		--print(i, name, type_constraints, tokens::visualize())
+		result[] = (
+			"if not (#{type_constraints})\n" ..
+			"    error(\"Bad type of variable '#{name}'!\")"
+		)
+
+	const code = table.concat(result, "\n")
+
+	code
 
 
 export main = (argv=arg) ->
@@ -23,8 +61,8 @@ export main = (argv=arg) ->
 	const f = (x, y, z) ->
 		$check_types(
 			x: string
-			y: (number | () -> number)
-			z: boolean?
+			y: number
+			z: boolean|_function?
 		)
 
 		print("f(x=%q, y=%.14g, z=%s)"::format(
@@ -34,6 +72,8 @@ export main = (argv=arg) ->
 		))
 
 	f("Test", 123, true)
+	f("Test", 123, nil)
+	f(420.69)
 
 
 if select("#", ...) == 0
