@@ -30,7 +30,8 @@ macro check_types = (...) ->
 			if token.name in ["Identifier", "Keyword"]
 				--- Allow "_function" since "function" on its own is not valid YueScript
 				const type_name = token.value::match("^_?(.*)$")
-				type_constraints ..= "(type(#{name}) == #{quote(type_name)})"
+				if type_name != "any"
+					type_constraints ..= "(type(#{name}) == #{quote(type_name)})"
 			elseif token.name in ["String", "Number"]
 				type_constraints ..= "((#{name}) == (#{token.value}))"
 			elseif token.value == "?"
@@ -55,14 +56,29 @@ macro check_types = (...) ->
 	code
 
 
+macro check_func_args = (func) ->
+	const head, arrow, body = func::match("^%(%s*(.-)%s*%)[ \t]*([%-=]>)%s*(.*)$")
+
+	const args = []
+
+	for name, type_name in head::gmatch("%s*([a-zA-Z_][a-zA-Z0-9_]*)%s*:%s*([^,]+)")
+		args[] = name
+
+	const code = "(#{table.concat(args, ', ')}) #{arrow}
+	$check_types(#{head})
+	#{body}"
+	print(code)
+	code
+
+
 export main = (argv=arg) ->
 	print($FILE .. ":" .. $LINE)
 
 	const f = (x, y, z) ->
 		$check_types(
-			x: string
-			y: number
-			z: boolean|_function?
+			x: string,
+			y: number,
+			z: boolean|_function?,
 		)
 
 		print("f(x=%q, y=%.14g, z=%s)"::format(
@@ -71,9 +87,11 @@ export main = (argv=arg) ->
 			tostring(z)
 		))
 
+	const g = $check_func_args (x: number, y: any) -> x * y
+
 	f("Test", 123, true)
 	f("Test", 123, nil)
-	f(420.69)
+	assert(not pcall(f, 420.69))
 
 
 if select("#", ...) == 0
